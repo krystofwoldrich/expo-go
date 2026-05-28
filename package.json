@@ -19,7 +19,6 @@
     "test": "bun test"
   },
   "dependencies": {
-    "commander": "^14.0.3",
     "semver": "^7.8.1",
     "tar": "^7.5.15"
   },
