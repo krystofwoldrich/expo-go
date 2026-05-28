@@ -6,10 +6,21 @@ To install dependencies:
 bun install
 ```
 
-To run:
+To run locally:
 
 ```bash
-bun run index.ts
+bun ./index.ts url android latest
 ```
 
-This project was created using `bun init` in bun v1.3.6. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Commands:
+
+```bash
+npx expo-go url <ios|android> [sdkVersion|latest]
+npx expo-go download <ios|android> [sdkVersion|latest] [outputPath]
+```
+
+Build the distributable CLI bundle:
+
+```bash
+bun run build
+```
