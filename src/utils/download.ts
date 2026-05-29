@@ -2,20 +2,46 @@ import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { Readable } from 'node:stream';
+import { clearLine, cursorTo } from 'node:readline';
+import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
 import { extract } from 'tar';
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
+const PROGRESS_RENDER_INTERVAL_MS = 100;
+
 export async function downloadFileWithProgressTrackerAsync(
   url: string,
   outputPath: string,
   progressTrackerMessage: string | ((ratio: number, total: number) => string),
   progressTrackerCompletedMessage: string,
-  { fetch: fetchInstance = fetch }: { showNewLine?: boolean; fetch?: FetchLike } = {}
+  { showNewLine = true, fetch: fetchInstance = fetch }: { showNewLine?: boolean; fetch?: FetchLike } = {}
 ): Promise<void> {
+  let didRenderProgress = false;
+  let lastProgressRenderTime = 0;
+  const renderProgress = (message: string): void => {
+    if (!process.stderr.isTTY) {
+      return;
+    }
+    if (!didRenderProgress && showNewLine) {
+      process.stderr.write('\n');
+    }
+    didRenderProgress = true;
+    clearLine(process.stderr, 0);
+    cursorTo(process.stderr, 0);
+    process.stderr.write(message);
+  };
+  const maybeRenderProgress = (message: string, isFinal = false): void => {
+    const now = Date.now();
+    if (!isFinal && now - lastProgressRenderTime < PROGRESS_RENDER_INTERVAL_MS) {
+      return;
+    }
+    lastProgressRenderTime = now;
+    renderProgress(message);
+  };
+
   try {
     await mkdir(path.dirname(outputPath), { recursive: true });
 
@@ -26,23 +52,43 @@ export async function downloadFileWithProgressTrackerAsync(
       throw new Error(`Failed to download file from ${url}`);
     }
 
-    const total = Number(response.headers.get('content-length'));
-    if (typeof progressTrackerMessage === 'function' && Number.isFinite(total) && total > 0) {
-      progressTrackerMessage(1, total);
-    } else if (typeof progressTrackerMessage === 'string') {
-      void progressTrackerMessage;
-    }
-    void progressTrackerCompletedMessage;
-
     if (!response.body) {
       throw new Error(`Failed to download file from ${url}`);
     }
 
+    const total = Number(response.headers.get('content-length'));
+    let downloaded = 0;
+    const progressStream = new Transform({
+      transform(chunk: Buffer | string, encoding, callback) {
+        downloaded += typeof chunk === 'string' ? Buffer.byteLength(chunk, encoding) : chunk.byteLength;
+        if (typeof progressTrackerMessage === 'function' && Number.isFinite(total) && total > 0) {
+          maybeRenderProgress(
+            progressTrackerMessage(Math.min(downloaded / total, 1), total),
+            downloaded >= total
+          );
+        }
+        callback(null, chunk);
+      },
+    });
+
+    if (typeof progressTrackerMessage === 'string') {
+      maybeRenderProgress(progressTrackerMessage);
+    }
+
     await pipeline(
       Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
+      progressStream,
       createWriteStream(outputPath)
     );
+    if (didRenderProgress) {
+      clearLine(process.stderr, 0);
+      cursorTo(process.stderr, 0);
+      process.stderr.write(`${progressTrackerCompletedMessage}\n`);
+    }
   } catch (error) {
+    if (didRenderProgress) {
+      process.stderr.write('\n');
+    }
     await rm(outputPath, { force: true, recursive: true });
     throw error;
   }
