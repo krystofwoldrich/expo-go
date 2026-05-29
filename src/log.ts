@@ -1,6 +1,8 @@
+import { env } from './utils/env';
+
 const Log = {
   debug(message: string): void {
-    if (process.env.DEBUG) {
+    if (env.EXPO_GO_DEBUG) {
       console.error(message);
     }
   },

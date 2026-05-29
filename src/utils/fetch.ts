@@ -4,6 +4,7 @@ import { FileSystemResponseCache } from './cache/FileSystemResponseCache';
 import type { FetchLike, ProgressCallback } from './cache/ResponseCache';
 import { wrapFetchWithCache } from './cache/wrapFetchWithCache';
 import { wrapFetchWithProgress } from './cache/wrapFetchWithProgress';
+import { env } from './env';
 import { getExpoHomeDirectory } from './paths';
 
 export type { FetchLike, ProgressCallback };
@@ -21,11 +22,7 @@ export function createFetch({
 }): FetchLike {
   const fetchWithProgress = wrapFetchWithProgress(fetchInstance);
 
-  if (
-    skipCache ||
-    isTruthyEnv(process.env.EXPO_BETA) ||
-    isTruthyEnv(process.env.EXPO_NO_CACHE)
-  ) {
+  if (skipCache || env.EXPO_BETA || env.EXPO_NO_CACHE) {
     return fetchWithProgress;
   }
 
@@ -36,8 +33,4 @@ export function createFetch({
       ttl,
     })
   );
-}
-
-function isTruthyEnv(value: string | undefined): boolean {
-  return !!value && value !== '0' && value.toLowerCase() !== 'false';
 }

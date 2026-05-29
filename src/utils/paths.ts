@@ -1,9 +1,11 @@
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { env } from './env';
+
 export function getExpoHomeDirectory(): string {
-  if (process.env.EXPO_HOME) {
-    return process.env.EXPO_HOME;
+  if (env.__UNSAFE_EXPO_HOME_DIRECTORY) {
+    return env.__UNSAFE_EXPO_HOME_DIRECTORY;
   }
 
   const home = homedir();
@@ -13,9 +15,9 @@ export function getExpoHomeDirectory(): string {
     );
   }
 
-  if (process.env.EXPO_STAGING) {
+  if (env.EXPO_STAGING) {
     return path.join(home, '.expo-staging');
-  } else if (process.env.EXPO_LOCAL) {
+  } else if (env.EXPO_LOCAL) {
     return path.join(home, '.expo-local');
   }
   return path.join(home, '.expo');

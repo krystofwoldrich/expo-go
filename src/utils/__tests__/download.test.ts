@@ -7,20 +7,20 @@ import { createFetch } from '../fetch';
 import { downloadFileWithProgressTrackerAsync } from '../download';
 
 let tempHome: string;
-let originalExpoHome: string | undefined;
+let originalExpoHomeDirectory: string | undefined;
 
 describe(downloadFileWithProgressTrackerAsync, () => {
   beforeEach(async () => {
     tempHome = await mkTempDirAsync();
-    originalExpoHome = process.env.EXPO_HOME;
-    process.env.EXPO_HOME = path.join(tempHome, '.expo');
+    originalExpoHomeDirectory = process.env.__UNSAFE_EXPO_HOME_DIRECTORY;
+    process.env.__UNSAFE_EXPO_HOME_DIRECTORY = path.join(tempHome, '.expo');
   });
 
   afterEach(async () => {
-    if (originalExpoHome === undefined) {
-      delete process.env.EXPO_HOME;
+    if (originalExpoHomeDirectory === undefined) {
+      delete process.env.__UNSAFE_EXPO_HOME_DIRECTORY;
     } else {
-      process.env.EXPO_HOME = originalExpoHome;
+      process.env.__UNSAFE_EXPO_HOME_DIRECTORY = originalExpoHomeDirectory;
     }
     mock.restore();
     await rm(tempHome, { force: true, recursive: true });

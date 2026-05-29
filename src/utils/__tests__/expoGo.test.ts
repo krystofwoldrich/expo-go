@@ -28,16 +28,16 @@ const versions: ExpoVersions = {
 
 let tempHome: string;
 let originalFetch: typeof fetch;
-let originalExpoHome: string | undefined;
+let originalExpoHomeDirectory: string | undefined;
 let originalHome: string | undefined;
 
 describe('expoGo utils', () => {
   beforeEach(async () => {
     tempHome = await mkTempDirAsync();
     originalFetch = globalThis.fetch;
-    originalExpoHome = process.env.EXPO_HOME;
+    originalExpoHomeDirectory = process.env.__UNSAFE_EXPO_HOME_DIRECTORY;
     originalHome = process.env.HOME;
-    process.env.EXPO_HOME = path.join(tempHome, '.expo');
+    process.env.__UNSAFE_EXPO_HOME_DIRECTORY = path.join(tempHome, '.expo');
     process.env.HOME = tempHome;
     globalThis.fetch = mock(async () => {
       return new Response(JSON.stringify({ data: versions }), {
@@ -57,10 +57,10 @@ describe('expoGo utils', () => {
     } else {
       process.env.HOME = originalHome;
     }
-    if (originalExpoHome === undefined) {
-      delete process.env.EXPO_HOME;
+    if (originalExpoHomeDirectory === undefined) {
+      delete process.env.__UNSAFE_EXPO_HOME_DIRECTORY;
     } else {
-      process.env.EXPO_HOME = originalExpoHome;
+      process.env.__UNSAFE_EXPO_HOME_DIRECTORY = originalExpoHomeDirectory;
     }
     mock.restore();
     await rm(tempHome, { force: true, recursive: true });
