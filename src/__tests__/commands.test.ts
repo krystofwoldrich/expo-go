@@ -2,28 +2,45 @@ import { describe, expect, it, mock } from 'bun:test';
 
 import { runCliAsync, type CliDependencies } from '../cli';
 
-function createDeps(): CliDependencies {
+function createDeps(calls: string[] = []): CliDependencies {
   return {
-    copyExpoGoToPathAsync: mock(async () => '/output/Exponent-55.apk'),
-    downloadExpoGoAsync: mock(async () => ({
-      path: '/cache/Exponent-55.apk',
-      sdkVersion: '55.0.0',
-      url: 'https://example.com/Exponent-55.apk',
-    })),
-    getExpoGoDownloadUrlAsync: mock(async () => ({
-      sdkVersion: '55.0.0',
-      url: 'https://example.com/Exponent-55.apk',
-    })),
+    copyExpoGoToPathAsync: mock(async () => {
+      calls.push('copy');
+      return '/output/Exponent-55.apk';
+    }),
+    downloadExpoGoAsync: mock(async () => {
+      calls.push('download');
+      return {
+        path: '/cache/Exponent-55.apk',
+        sdkVersion: '55.0.0',
+        url: 'https://example.com/Exponent-55.apk',
+      };
+    }),
+    getExpoGoDownloadUrlAsync: mock(async () => {
+      calls.push('get-url');
+      return {
+        sdkVersion: '55.0.0',
+        url: 'https://example.com/Exponent-55.apk',
+      };
+    }),
     log: mock(() => {}),
+    warn: mock(message => {
+      calls.push(`warn:${message}`);
+    }),
   };
 }
 
 describe('url', () => {
   it('prints the resolved Expo Go URL for the platform and SDK version', async () => {
-    const deps = createDeps();
+    const calls: string[] = [];
+    const deps = createDeps(calls);
 
     await runCliAsync(['url', 'android', '55'], deps, { exitOverride: true, from: 'user' });
 
+    expect(calls.slice(0, 2)).toEqual([
+      'warn:Resolving the correct Expo Go version...',
+      'get-url',
+    ]);
     expect(deps.getExpoGoDownloadUrlAsync).toHaveBeenCalledWith('android', {
       sdkVersion: '55',
     });
@@ -33,13 +50,18 @@ describe('url', () => {
 
 describe('download', () => {
   it('downloads an explicit SDK version to an explicit output path', async () => {
-    const deps = createDeps();
+    const calls: string[] = [];
+    const deps = createDeps(calls);
 
     await runCliAsync(['download', 'android', '55', '/output'], deps, {
       exitOverride: true,
       from: 'user',
     });
 
+    expect(calls.slice(0, 2)).toEqual([
+      'warn:Resolving the correct Expo Go version...',
+      'download',
+    ]);
     expect(deps.downloadExpoGoAsync).toHaveBeenCalledWith('android', {
       sdkVersion: '55',
     });

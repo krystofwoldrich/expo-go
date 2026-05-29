@@ -13,6 +13,7 @@ export type CliDependencies = {
   downloadExpoGoAsync: typeof downloadExpoGoAsync;
   getExpoGoDownloadUrlAsync: typeof getExpoGoDownloadUrlAsync;
   log: (message: string) => void;
+  warn: (message: string) => void;
 };
 
 type RunCliOptions = {
@@ -26,6 +27,7 @@ export const defaultCliDependencies: CliDependencies = {
   downloadExpoGoAsync,
   getExpoGoDownloadUrlAsync,
   log: Log.log,
+  warn: Log.warn,
 };
 
 const HELP = `Usage: expo-go [command]
@@ -55,6 +57,8 @@ Arguments:
   sdkVersion  Expo SDK version, or "latest". Defaults to the current project SDK, or latest.
   outputPath  Output path. Defaults to the current directory. Pass an SDK version (or "latest") to use it.`,
 } as const;
+
+const RESOLVING_EXPO_GO_VERSION_MESSAGE = 'Resolving the correct Expo Go version...';
 
 function toUserArgs(argv: string[], from: RunCliOptions['from']): string[] {
   return from === 'user' ? argv : argv.slice(2);
@@ -105,6 +109,7 @@ export async function runCliAsync(
     assertNoExtraArgs(command, args, 2);
     const platform = assertPlatform(args[0]);
     const sdkVersion = args[1];
+    deps.warn(RESOLVING_EXPO_GO_VERSION_MESSAGE);
     const { url } = await deps.getExpoGoDownloadUrlAsync(platform, { sdkVersion });
     deps.log(url);
     return;
@@ -125,6 +130,7 @@ export async function runCliAsync(
       );
     }
 
+    deps.warn(RESOLVING_EXPO_GO_VERSION_MESSAGE);
     const download = await deps.downloadExpoGoAsync(platform, { sdkVersion });
     const copiedPath = await deps.copyExpoGoToPathAsync({
       destinationPath: outputPath,
