@@ -1,3 +1,5 @@
+import type { FetchLike } from './utils/fetch';
+
 export function getExpoApiBaseUrl(): string {
   if (process.env.EXPO_STAGING) {
     return 'https://staging-api.expo.dev';
@@ -7,8 +9,11 @@ export function getExpoApiBaseUrl(): string {
   return 'https://api.expo.dev';
 }
 
-export async function apiGetAsync(path: string): Promise<unknown> {
-  const response = await fetch(`${getExpoApiBaseUrl()}/v2/${path}`, {
+export async function apiGetAsync(
+  path: string,
+  { fetch: fetchAsync = fetch as FetchLike }: { fetch?: FetchLike } = {}
+): Promise<unknown> {
+  const response = await fetchAsync(`${getExpoApiBaseUrl()}/v2/${path}`, {
     headers: {
       'Content-Type': 'application/json',
     },

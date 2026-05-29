@@ -25,6 +25,8 @@ Downloaded binaries are cached under the Expo home directory:
 - Android APKs: `~/.expo/android-apk-cache`
 - iOS simulator apps: `~/.expo/ios-simulator-app-cache`
 
+Expo API and download responses are cached under `~/.expo/versions-cache` and `~/.expo/expo-go`. Set `EXPO_NO_CACHE=1` to skip response caching.
+
 ## Commands
 
 ### `expo-go url`

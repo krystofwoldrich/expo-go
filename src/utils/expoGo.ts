@@ -6,6 +6,7 @@ import path from 'node:path';
 import { apiGetAsync } from '../api';
 import Log from '../log';
 import { bold } from '../style';
+import { createFetch } from './fetch';
 import * as downloadUtils from './download';
 import type { FetchLike } from './download';
 import { formatBytes } from './files';
@@ -27,6 +28,8 @@ export type ExpoVersions = {
 };
 
 const SIX_MONTHS_IN_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+const VERSIONS_CACHE_TTL_MS = 1000 * 60 * 5;
+const ONE_WEEK_IN_MS = 1000 * 60 * 60 * 24 * 7;
 
 // Mirrors @expo/cli's platform settings for Expo Go downloads, with the
 // standalone CLI addition of an output extension for copy/download commands.
@@ -124,7 +127,12 @@ function normalizeSdkVersionInputOrLatest(sdkVersion: string): string {
 }
 
 export async function getVersionsAsync(): Promise<ExpoVersions> {
-  const response = await apiGetAsync('versions/latest');
+  const response = await apiGetAsync('versions/latest', {
+    fetch: createFetch({
+      cacheDirectory: 'versions-cache',
+      ttl: VERSIONS_CACHE_TTL_MS,
+    }),
+  });
   const data = response && typeof response === 'object' && 'data' in response ? response.data : response;
   if (
     !data ||
@@ -278,7 +286,10 @@ async function downloadAppAsync({
   outputPath: string;
   extract: boolean;
 }): Promise<void> {
-  const fetchInstance: FetchLike = fetch;
+  const fetchInstance: FetchLike = createFetch({
+    cacheDirectory: 'expo-go',
+    ttl: ONE_WEEK_IN_MS,
+  });
   const progressMessage = (ratio: number, total: number): string =>
     `Downloading Expo Go (${formatBytes(total * ratio)} / ${formatBytes(total)})`;
 

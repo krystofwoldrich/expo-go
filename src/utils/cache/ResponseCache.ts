@@ -1,0 +1,114 @@
+import { Buffer } from 'node:buffer';
+import crypto from 'node:crypto';
+import { ReadStream } from 'node:fs';
+
+const GLOBAL_CACHE_VERSION = 4;
+
+export type RequestInfoLike = string | Request | URL;
+export type ProgressCallback = (props: {
+  /** Number ranging from 0 to 1 representing the download percentage. */
+  progress: number;
+  /** Total size of the download, in bytes. */
+  total: number;
+  /** Current amount of data downloaded, in bytes. */
+  loaded: number;
+}) => void;
+
+export type FetchInit = RequestInit & {
+  /** Progress callback, only implemented when `wrapFetchWithProgress` is used. */
+  onProgress?: ProgressCallback;
+};
+
+export type FetchLike = (url: RequestInfoLike, init?: FetchInit) => Promise<Response>;
+
+export type ResponseCacheEntry = {
+  body: ReadableStream;
+  info: ReturnType<typeof getResponseInfo>;
+};
+
+export interface ResponseCache {
+  /** Load the response info from cache, if any */
+  get(cacheKey: string): Promise<ResponseCacheEntry | undefined>;
+  /** Store the response info to cache, and return the cached info */
+  set(cacheKey: string, response: ResponseCacheEntry): Promise<ResponseCacheEntry | undefined>;
+  /** Remove a response entry from the cache */
+  remove(cacheKey: string): Promise<void>;
+}
+
+export function getResponseInfo(response: Response) {
+  const headers = Object.fromEntries(response.headers.entries());
+  delete headers['set-cookie'];
+  return {
+    url: response.url,
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  };
+}
+
+export function getRequestCacheKey(info: RequestInfoLike, init?: RequestInit) {
+  const infoKeyData = getRequestInfoCacheData(info);
+  const initKeyData = { body: init?.body ? getRequestBodyCacheData(init.body) : undefined };
+
+  return crypto
+    .createHash('md5')
+    .update(JSON.stringify([infoKeyData, initKeyData, GLOBAL_CACHE_VERSION]))
+    .digest('hex');
+}
+
+/** @internal Exposed for testing */
+export function getRequestInfoCacheData(info: RequestInfoLike) {
+  if (typeof info === 'string') {
+    return { url: info };
+  }
+
+  if (info instanceof URL) {
+    return { url: info.toString() };
+  }
+
+  if (info instanceof Request) {
+    return {
+      credentials: info.credentials.toString(),
+      destination: info.destination.toString(),
+      headers: Object.fromEntries(info.headers.entries()),
+      integrity: info.integrity,
+      method: info.method,
+      redirect: info.redirect,
+      referrer: info.referrer,
+      referrerPolicy: info.referrerPolicy,
+      url: info.url.toString(),
+    };
+  }
+
+  throw new Error('Unsupported request info type for caching: ' + typeof info);
+}
+
+/** @internal Exposed for testing */
+export function getRequestBodyCacheData(body: RequestInit['body']) {
+  if (!body) {
+    return body;
+  }
+
+  if (typeof body === 'string') {
+    return body;
+  }
+
+  if (body instanceof URLSearchParams) {
+    return body.toString();
+  }
+
+  // Supported for legacy purposes because node-fetch uses fs.readStream.
+  if (body instanceof ReadStream) {
+    return body.path;
+  }
+
+  if (body.toString && body.toString() === '[object FormData]') {
+    return new URLSearchParams(body as any).toString();
+  }
+
+  if (body instanceof Buffer) {
+    return body.toString();
+  }
+
+  throw new Error(`Unsupported request body type for caching: ${typeof body}`);
+}

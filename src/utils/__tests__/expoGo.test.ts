@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -138,6 +138,19 @@ describe('expoGo utils', () => {
         url: 'https://example.com/Exponent-55.tar.gz',
       });
     });
+
+    it('caches version responses in the Expo home directory', async () => {
+      await expect(getExpoGoDownloadUrlAsync('android', { sdkVersion: '55' })).resolves.toEqual({
+        sdkVersion: '55.0.0',
+        url: 'https://example.com/Exponent-55.apk',
+      });
+      await expect(getExpoGoDownloadUrlAsync('ios', { sdkVersion: '54' })).resolves.toEqual({
+        sdkVersion: '54.0.0',
+        url: 'https://example.com/Exponent-54.tar.gz',
+      });
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe(downloadExpoGoAsync, () => {
@@ -192,6 +205,37 @@ describe('expoGo utils', () => {
         expect.objectContaining({ showNewLine: false })
       );
       expect(extractArchiveSpy).not.toHaveBeenCalled();
+    });
+
+    it('restores Android apk downloads from the response cache without refetching', async () => {
+      let fetchCalls = 0;
+      globalThis.fetch = mock(async () => {
+        fetchCalls++;
+        if (fetchCalls > 1) {
+          throw new Error('Network should not be used after the response is cached.');
+        }
+        return new Response('apk contents', {
+          headers: { 'content-length': '12' },
+          status: 200,
+        });
+      }) as unknown as typeof fetch;
+
+      const firstDownload = await downloadExpoGoAsync('android', {
+        sdkVersion: '55',
+        url: 'https://example.com/Exponent-55.apk',
+      });
+      expect(await readFile(firstDownload.path, 'utf8')).toBe('apk contents');
+
+      await rm(firstDownload.path, { force: true, recursive: true });
+
+      const secondDownload = await downloadExpoGoAsync('android', {
+        sdkVersion: '55',
+        url: 'https://example.com/Exponent-55.apk',
+      });
+
+      expect(secondDownload.path).toBe(firstDownload.path);
+      expect(await readFile(secondDownload.path, 'utf8')).toBe('apk contents');
+      expect(fetchCalls).toBe(1);
     });
   });
 });
