@@ -11,7 +11,6 @@ import {
   getExpoGoDownloadUrlAsync,
   getExpoGoVersionEntryFromVersions,
   getLatestSdkVersion,
-  normalizeSdkVersion,
 } from '../expoGo';
 
 const versions: ExpoVersions = {
@@ -67,27 +66,17 @@ describe('expoGo utils', () => {
     await rm(tempHome, { force: true, recursive: true });
   });
 
-  describe(normalizeSdkVersion, () => {
-    it('normalizes SDK major versions', () => {
-      expect(normalizeSdkVersion('55')).toBe('55.0.0');
-      expect(normalizeSdkVersion('55.1')).toBe('55.1.0');
-      expect(normalizeSdkVersion('55.0.0')).toBe('55.0.0');
-      expect(normalizeSdkVersion('UNVERSIONED')).toBe('UNVERSIONED');
-    });
-  });
-
   describe(getLatestSdkVersion, () => {
-    it('returns the highest semver SDK version', () => {
+    it('returns the highest SDK major version', () => {
       expect(getLatestSdkVersion(versions.sdkVersions)).toBe('55.0.0');
     });
   });
 
   describe(getExpoGoVersionEntryFromVersions, () => {
-    it('supports UNVERSIONED by resolving to the latest SDK version', () => {
-      const result = getExpoGoVersionEntryFromVersions('UNVERSIONED', versions);
+    it('resolves SDK inputs through parseInt', () => {
+      const result = getExpoGoVersionEntryFromVersions('55.0.0', versions);
 
       expect(result.sdkVersion).toBe('55.0.0');
-      expect(Log.warn).toHaveBeenCalledWith(expect.stringContaining('55.0.0'));
     });
 
     it('supports "latest" by resolving to the latest SDK version without warning', () => {
@@ -100,6 +89,15 @@ describe('expoGo utils', () => {
     it('throws when the SDK version is missing', () => {
       expect(() => getExpoGoVersionEntryFromVersions('53', versions)).toThrow(
         'Unable to find a version of Expo Go for SDK 53.0.0'
+      );
+    });
+
+    it('rejects SDK versions that are not parsable by parseInt or exact "latest"', () => {
+      expect(() => getExpoGoVersionEntryFromVersions('LATEST', versions)).toThrow(
+        'Expected "LATEST" to be an Expo SDK version or "latest".'
+      );
+      expect(() => getExpoGoVersionEntryFromVersions('UNVERSIONED', versions)).toThrow(
+        'Expected "UNVERSIONED" to be an Expo SDK version or "latest".'
       );
     });
   });

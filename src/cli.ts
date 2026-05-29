@@ -81,6 +81,20 @@ function assertNoExtraArgs(command: string, args: string[], max: number): void {
   }
 }
 
+function assertSdkVersionInput(
+  sdkVersion: string | undefined,
+  { withOutputPathHint = false } = {}
+): void {
+  if (sdkVersion && !isSdkVersionInput(sdkVersion)) {
+    const hint = withOutputPathHint
+      ? ' Pass "latest" as the SDK version to download the default Expo Go to a specific output path.'
+      : '';
+    throw new Error(
+      `Expected "${sdkVersion}" to be an Expo SDK version or "latest".${hint}`
+    );
+  }
+}
+
 export async function runCliAsync(
   argv: string[] = process.argv,
   deps: CliDependencies = defaultCliDependencies,
@@ -109,6 +123,7 @@ export async function runCliAsync(
     assertNoExtraArgs(command, args, 2);
     const platform = assertPlatform(args[0]);
     const sdkVersion = args[1];
+    assertSdkVersionInput(sdkVersion);
     deps.warn(RESOLVING_EXPO_GO_VERSION_MESSAGE);
     const { url } = await deps.getExpoGoDownloadUrlAsync(platform, { sdkVersion });
     deps.log(url);
@@ -124,11 +139,7 @@ export async function runCliAsync(
     const platform = assertPlatform(args[0]);
     const sdkVersion = args[1];
     const outputPath = args[2];
-    if (sdkVersion && !isSdkVersionInput(sdkVersion)) {
-      throw new Error(
-        `Expected "${sdkVersion}" to be an Expo SDK version or "latest". Pass "latest" as the SDK version to download the default Expo Go to a specific output path.`
-      );
-    }
+    assertSdkVersionInput(sdkVersion, { withOutputPathHint: true });
 
     deps.warn(RESOLVING_EXPO_GO_VERSION_MESSAGE);
     const download = await deps.downloadExpoGoAsync(platform, { sdkVersion });

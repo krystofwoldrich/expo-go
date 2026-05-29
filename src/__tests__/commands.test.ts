@@ -46,6 +46,17 @@ describe('url', () => {
     });
     expect(deps.log).toHaveBeenCalledWith('https://example.com/Exponent-55.apk');
   });
+
+  it('rejects an SDK version that is not parsable by parseInt or exact "latest"', async () => {
+    const calls: string[] = [];
+    const deps = createDeps(calls);
+
+    await expect(
+      runCliAsync(['url', 'ios', 'LATEST'], deps, { exitOverride: true, from: 'user' })
+    ).rejects.toThrow('Expected "LATEST" to be an Expo SDK version or "latest".');
+
+    expect(calls).toEqual([]);
+  });
 });
 
 describe('download', () => {

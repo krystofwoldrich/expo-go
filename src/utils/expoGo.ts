@@ -3,8 +3,6 @@ import { cp, lstat, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { homedir } from 'node:os';
 import path from 'node:path';
 
-import semver from 'semver';
-
 import { apiGetAsync } from '../api';
 import Log from '../log';
 import { bold } from '../style';
@@ -104,20 +102,25 @@ export async function detectProjectSdkVersionAsync(
   }
 }
 
-export function normalizeSdkVersion(sdkVersion: string): string {
-  if (sdkVersion.toUpperCase() === 'UNVERSIONED') {
-    return 'UNVERSIONED';
-  } else if (/^\d+$/.test(sdkVersion)) {
-    return `${sdkVersion}.0.0`;
-  } else if (/^\d+\.\d+$/.test(sdkVersion)) {
-    return `${sdkVersion}.0`;
-  }
-  return sdkVersion;
+function getSdkVersionNumber(sdkVersion: string): number | null {
+  const version = parseInt(sdkVersion, 10);
+  return Number.isNaN(version) ? null : version;
 }
 
 export function isSdkVersionInput(value: string): boolean {
-  const normalized = value.toUpperCase();
-  return normalized === 'UNVERSIONED' || normalized === 'LATEST' || /^\d+(\.\d+){0,2}$/.test(value);
+  return value === 'latest' || getSdkVersionNumber(value) !== null;
+}
+
+function normalizeSdkVersionInput(sdkVersion: string): string {
+  const version = getSdkVersionNumber(sdkVersion);
+  if (version === null) {
+    throw new Error(`Expected "${sdkVersion}" to be an Expo SDK version or "latest".`);
+  }
+  return `${version}.0.0`;
+}
+
+function normalizeSdkVersionInputOrLatest(sdkVersion: string): string {
+  return sdkVersion === 'latest' ? sdkVersion : normalizeSdkVersionInput(sdkVersion);
 }
 
 export async function getVersionsAsync(): Promise<ExpoVersions> {
@@ -136,11 +139,19 @@ export async function getVersionsAsync(): Promise<ExpoVersions> {
 }
 
 export function getLatestSdkVersion(sdkVersions: Record<string, SDKVersion>): string {
-  const latestVersion = Object.keys(sdkVersions)
-    .filter(version => semver.valid(version))
-    .reduce((latest, version) => (semver.gt(version, latest) ? version : latest), '0.0.0');
+  const latestVersion = Object.keys(sdkVersions).reduce<string | null>((latest, version) => {
+    const sdkVersionNumber = getSdkVersionNumber(version);
+    if (sdkVersionNumber === null) {
+      return latest;
+    }
 
-  if (latestVersion === '0.0.0') {
+    const latestSdkVersionNumber = latest ? getSdkVersionNumber(latest) : null;
+    return latestSdkVersionNumber === null || sdkVersionNumber > latestSdkVersionNumber
+      ? version
+      : latest;
+  }, null);
+
+  if (!latestVersion) {
     throw new Error('Unable to find a version of Expo Go.');
   }
   return latestVersion;
@@ -150,22 +161,13 @@ export function getExpoGoVersionEntryFromVersions(
   sdkVersion: string,
   versions: ExpoVersions
 ): { sdkVersion: string; version: SDKVersion } {
-  const normalizedSdkVersion = normalizeSdkVersion(sdkVersion);
-  const upperSdkVersion = normalizedSdkVersion.toUpperCase();
-  const resolvesToLatest = upperSdkVersion === 'UNVERSIONED' || upperSdkVersion === 'LATEST';
-  const resolvedSdkVersion = resolvesToLatest
+  const resolvedSdkVersion = sdkVersion === 'latest'
     ? getLatestSdkVersion(versions.sdkVersions)
-    : normalizedSdkVersion;
-
-  if (upperSdkVersion === 'UNVERSIONED') {
-    Log.warn(
-      `Downloading the latest Expo Go client (${resolvedSdkVersion}). This will not fully conform to UNVERSIONED.`
-    );
-  }
+    : normalizeSdkVersionInput(sdkVersion);
 
   const version = versions.sdkVersions[resolvedSdkVersion];
   if (!version) {
-    throw new Error(`Unable to find a version of Expo Go for SDK ${normalizedSdkVersion}`);
+    throw new Error(`Unable to find a version of Expo Go for SDK ${resolvedSdkVersion}`);
   }
   return { sdkVersion: resolvedSdkVersion, version };
 }
@@ -187,11 +189,8 @@ export async function getExpoGoDownloadUrlAsync(
   } = {}
 ): Promise<{ sdkVersion: string; url: string }> {
   const versions = await getVersionsAsync();
-  const resolvedSdkVersion = sdkVersion
-    ? normalizeSdkVersion(sdkVersion)
-    : normalizeSdkVersion(
-        (await detectProjectSdkVersionAsync(projectDir)) ?? getLatestSdkVersion(versions.sdkVersions)
-      );
+  const resolvedSdkVersion =
+    sdkVersion ?? (await detectProjectSdkVersionAsync(projectDir)) ?? 'latest';
   const { sdkVersion: matchingSdkVersion, version } = getExpoGoVersionEntryFromVersions(
     resolvedSdkVersion,
     versions
@@ -245,7 +244,10 @@ export async function downloadExpoGoAsync(
   } = {}
 ): Promise<{ path: string; sdkVersion: string; url: string }> {
   const result = url
-    ? { sdkVersion: sdkVersion ? normalizeSdkVersion(sdkVersion) : 'unknown', url }
+    ? {
+        sdkVersion: sdkVersion ? normalizeSdkVersionInputOrLatest(sdkVersion) : 'unknown',
+        url,
+      }
     : await getExpoGoDownloadUrlAsync(platform, { projectDir, sdkVersion });
 
   const { getFilePath, shouldExtractResults } = platformSettings[platform];
