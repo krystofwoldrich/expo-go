@@ -18,7 +18,7 @@ npx expo-go download android 55 ./downloads
 npx expo-go download ios latest ./ExpoGo.app
 ```
 
-When no SDK version is provided, the CLI tries to read the current project SDK from `app.json` or `app.config.json`, then falls back to the latest Expo Go version. If you want to pass an output path without choosing a specific SDK, pass `latest` as the SDK argument.
+When no SDK version is provided, the CLI uses the latest Expo Go version. If you want to pass an output path without choosing a specific SDK, pass `latest` as the SDK argument.
 
 Downloaded binaries are cached under the Expo home directory:
 

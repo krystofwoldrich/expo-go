@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { cp, lstat, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { cp, lstat, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -72,36 +72,6 @@ async function pathExistsAsync(filePath: string): Promise<boolean> {
     return true;
   } catch {
     return false;
-  }
-}
-
-async function readJsonConfigAsync(filePath: string): Promise<unknown | null> {
-  try {
-    return JSON.parse(await readFile(filePath, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-export async function detectProjectSdkVersionAsync(
-  projectDir: string
-): Promise<string | undefined> {
-  const candidates = ['app.json', 'app.config.json'];
-  for (const candidate of candidates) {
-    const config = await readJsonConfigAsync(path.join(projectDir, candidate));
-    if (!config || typeof config !== 'object') {
-      continue;
-    }
-
-    const maybeExpoConfig = 'expo' in config ? (config as { expo?: unknown }).expo : config;
-    if (
-      maybeExpoConfig &&
-      typeof maybeExpoConfig === 'object' &&
-      'sdkVersion' in maybeExpoConfig &&
-      typeof maybeExpoConfig.sdkVersion === 'string'
-    ) {
-      return maybeExpoConfig.sdkVersion;
-    }
   }
 }
 
@@ -189,16 +159,13 @@ export async function getExpoGoVersionEntryAsync(
 export async function getExpoGoDownloadUrlAsync(
   platform: ExpoGoPlatform,
   {
-    projectDir = process.cwd(),
     sdkVersion,
   }: {
-    projectDir?: string;
     sdkVersion?: string;
   } = {}
 ): Promise<{ sdkVersion: string; url: string }> {
   const versions = await getVersionsAsync();
-  const resolvedSdkVersion =
-    sdkVersion ?? (await detectProjectSdkVersionAsync(projectDir)) ?? 'latest';
+  const resolvedSdkVersion = sdkVersion ?? 'latest';
   const { sdkVersion: matchingSdkVersion, version } = getExpoGoVersionEntryFromVersions(
     resolvedSdkVersion,
     versions
@@ -242,11 +209,9 @@ export async function cleanupOldExpoGoCacheEntriesAsync(
 export async function downloadExpoGoAsync(
   platform: ExpoGoPlatform,
   {
-    projectDir = process.cwd(),
     sdkVersion,
     url,
   }: {
-    projectDir?: string;
     sdkVersion?: string;
     url?: string;
   } = {}
@@ -256,7 +221,7 @@ export async function downloadExpoGoAsync(
         sdkVersion: sdkVersion ? normalizeSdkVersionInputOrLatest(sdkVersion) : 'unknown',
         url,
       }
-    : await getExpoGoDownloadUrlAsync(platform, { projectDir, sdkVersion });
+    : await getExpoGoDownloadUrlAsync(platform, { sdkVersion });
 
   const { getFilePath, shouldExtractResults } = platformSettings[platform];
   const filename = path.parse(getUrlBasename(result.url)).name;

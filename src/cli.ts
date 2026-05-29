@@ -47,14 +47,14 @@ Print the Expo Go download URL for a platform.
 
 Arguments:
   platform    ios or android
-  sdkVersion  Expo SDK version, or "latest". Defaults to the current project SDK, or latest.`,
+  sdkVersion  Expo SDK version, or "latest". Defaults to latest.`,
   download: `Usage: expo-go download <platform> [sdkVersion] [outputPath]
 
 Download Expo Go for a platform.
 
 Arguments:
   platform    ios or android
-  sdkVersion  Expo SDK version, or "latest". Defaults to the current project SDK, or latest.
+  sdkVersion  Expo SDK version, or "latest". Defaults to latest.
   outputPath  Output path. Defaults to the current directory. Pass an SDK version (or "latest") to use it.`,
 } as const;
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -110,22 +110,7 @@ describe('expoGo utils', () => {
       });
     });
 
-    it('uses the current project SDK version when no SDK argument is provided', async () => {
-      const projectDir = await mkTempDirAsync();
-      await writeFile(
-        path.join(projectDir, 'app.json'),
-        JSON.stringify({ expo: { sdkVersion: '54.0.0' } })
-      );
-
-      await expect(getExpoGoDownloadUrlAsync('android', { projectDir })).resolves.toEqual({
-        sdkVersion: '54.0.0',
-        url: 'https://example.com/Exponent-54.apk',
-      });
-
-      await rm(projectDir, { force: true, recursive: true });
-    });
-
-    it('falls back to the latest SDK version when no project SDK is available', async () => {
+    it('uses the latest SDK version when no SDK argument is provided', async () => {
       await expect(getExpoGoDownloadUrlAsync('android')).resolves.toEqual({
         sdkVersion: '55.0.0',
         url: 'https://example.com/Exponent-55.apk',
