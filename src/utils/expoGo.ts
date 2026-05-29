@@ -1,4 +1,5 @@
-import { cp, lstat, mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { cp, lstat, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -74,13 +75,8 @@ async function pathExistsAsync(filePath: string): Promise<boolean> {
 }
 
 async function readJsonConfigAsync(filePath: string): Promise<unknown | null> {
-  const file = Bun.file(filePath);
-  if (!(await file.exists())) {
-    return null;
-  }
-
   try {
-    return await file.json();
+    return JSON.parse(await readFile(filePath, 'utf8'));
   } catch {
     return null;
   }
@@ -285,7 +281,7 @@ async function downloadAppAsync({
     `Downloading Expo Go (${formatBytes(total * ratio)} / ${formatBytes(total)})`;
 
   if (extract) {
-    const tmpDir = path.join(getTmpDirectory(), crypto.randomUUID());
+    const tmpDir = path.join(getTmpDirectory(), randomUUID());
     await mkdir(tmpDir, { recursive: true });
     const tmpPath = path.join(tmpDir, getUrlBasename(url));
     await downloadUtils.downloadFileWithProgressTrackerAsync(

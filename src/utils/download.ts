@@ -1,5 +1,9 @@
+import { spawn } from 'node:child_process';
+import { createWriteStream } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 
 import { extract } from 'tar';
 
@@ -30,7 +34,14 @@ export async function downloadFileWithProgressTrackerAsync(
     }
     void progressTrackerCompletedMessage;
 
-    await Bun.write(outputPath, response);
+    if (!response.body) {
+      throw new Error(`Failed to download file from ${url}`);
+    }
+
+    await pipeline(
+      Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
+      createWriteStream(outputPath)
+    );
   } catch (error) {
     await rm(outputPath, { force: true, recursive: true });
     throw error;
@@ -39,12 +50,7 @@ export async function downloadFileWithProgressTrackerAsync(
 
 export async function extractArchiveAsync(input: string, output: string): Promise<void> {
   try {
-    const subprocess = Bun.spawn(['tar', '-xf', input, '-C', output], {
-      stderr: 'inherit',
-      stdout: 'inherit',
-    });
-    const exitCode = await subprocess.exited;
-    if (exitCode === 0) {
+    if (await extractWithNativeTarAsync(input, output)) {
       return;
     }
   } catch {
@@ -52,4 +58,17 @@ export async function extractArchiveAsync(input: string, output: string): Promis
   }
 
   await extract({ cwd: output, file: input });
+}
+
+function extractWithNativeTarAsync(input: string, output: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const subprocess = spawn('tar', ['-xf', input, '-C', output], {
+      stdio: ['ignore', 'inherit', 'inherit'],
+    });
+
+    subprocess.on('error', reject);
+    subprocess.on('close', code => {
+      resolve(code === 0);
+    });
+  });
 }

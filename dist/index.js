@@ -1,36 +1,23 @@
-#!/usr/bin/env bun
-// @bun
+#!/usr/bin/env node
+import { createRequire } from "node:module";
 var __create = Object.create;
 var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
 // node_modules/semver/internal/constants.js
 var require_constants = __commonJS((exports, module) => {
@@ -1884,9 +1871,10 @@ function bold(value) {
 
 // src/utils/expoGo.ts
 var import_semver = __toESM(require_semver2(), 1);
-import { cp, lstat, mkdir as mkdir2, readdir, rm as rm2, stat } from "fs/promises";
-import { homedir as homedir2 } from "os";
-import path3 from "path";
+import { randomUUID } from "node:crypto";
+import { cp, lstat, mkdir as mkdir2, readdir, readFile, rm as rm2, stat } from "node:fs/promises";
+import { homedir as homedir2 } from "node:os";
+import path3 from "node:path";
 
 // src/api.ts
 function getExpoApiBaseUrl() {
@@ -1910,44 +1898,48 @@ async function apiGetAsync(path) {
 }
 
 // src/utils/download.ts
-import { mkdir, rm } from "fs/promises";
-import path from "path";
+import { spawn } from "node:child_process";
+import { createWriteStream } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
+import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 // node_modules/tar/dist/esm/index.min.js
 import Vr from "events";
 import I from "fs";
-import { EventEmitter as Li } from "events";
-import Ds from "stream";
-import { StringDecoder as Br } from "string_decoder";
-import or from "path";
-import Vt from "fs";
+import { EventEmitter as Li } from "node:events";
+import Ds from "node:stream";
+import { StringDecoder as Br } from "node:string_decoder";
+import or from "node:path";
+import Vt from "node:fs";
 import { dirname as Ln, parse as Nn } from "path";
 import { EventEmitter as _n } from "events";
 import Pi from "assert";
 import { Buffer as Ot } from "buffer";
 import * as vs from "zlib";
 import Qr from "zlib";
-import { posix as Zt } from "path";
-import { basename as Sn } from "path";
+import { posix as Zt } from "node:path";
+import { basename as Sn } from "node:path";
 import ui from "fs";
 import $ from "fs";
 import Xs from "path";
-import { win32 as Cn } from "path";
+import { win32 as Cn } from "node:path";
 import rr from "path";
-import kr from "fs";
-import ro from "assert";
-import { randomBytes as Cr } from "crypto";
-import u from "fs";
-import R from "path";
+import kr from "node:fs";
+import ro from "node:assert";
+import { randomBytes as Cr } from "node:crypto";
+import u from "node:fs";
+import R from "node:path";
 import fr from "fs";
-import Ei from "fs";
-import we from "path";
-import F from "fs";
-import Jn from "fs/promises";
-import wi from "path";
-import { join as br } from "path";
-import v from "fs";
-import Fr from "path";
+import Ei from "node:fs";
+import we from "node:path";
+import F from "node:fs";
+import Jn from "node:fs/promises";
+import wi from "node:path";
+import { join as br } from "node:path";
+import v from "node:fs";
+import Fr from "node:path";
 var vr = Object.defineProperty;
 var Mr = (s, t) => {
   for (var e in t)
@@ -5096,7 +5088,10 @@ async function downloadFileWithProgressTrackerAsync(url, outputPath, progressTra
     if (typeof progressTrackerMessage === "function" && Number.isFinite(total) && total > 0) {
       progressTrackerMessage(1, total);
     } else if (typeof progressTrackerMessage === "string") {}
-    await Bun.write(outputPath, response);
+    if (!response.body) {
+      throw new Error(`Failed to download file from ${url}`);
+    }
+    await pipeline(Readable.fromWeb(response.body), createWriteStream(outputPath));
   } catch (error) {
     await rm(outputPath, { force: true, recursive: true });
     throw error;
@@ -5104,16 +5099,22 @@ async function downloadFileWithProgressTrackerAsync(url, outputPath, progressTra
 }
 async function extractArchiveAsync(input, output) {
   try {
-    const subprocess = Bun.spawn(["tar", "-xf", input, "-C", output], {
-      stderr: "inherit",
-      stdout: "inherit"
-    });
-    const exitCode = await subprocess.exited;
-    if (exitCode === 0) {
+    if (await extractWithNativeTarAsync(input, output)) {
       return;
     }
   } catch {}
   await fo({ cwd: output, file: input });
+}
+function extractWithNativeTarAsync(input, output) {
+  return new Promise((resolve, reject) => {
+    const subprocess = spawn("tar", ["-xf", input, "-C", output], {
+      stdio: ["ignore", "inherit", "inherit"]
+    });
+    subprocess.on("error", reject);
+    subprocess.on("close", (code) => {
+      resolve(code === 0);
+    });
+  });
 }
 
 // src/utils/files.ts
@@ -5128,8 +5129,8 @@ function formatBytes(bytes) {
 }
 
 // src/utils/paths.ts
-import { homedir, tmpdir } from "os";
-import path2 from "path";
+import { homedir, tmpdir } from "node:os";
+import path2 from "node:path";
 function getExpoHomeDirectory() {
   if (process.env.EXPO_HOME) {
     return process.env.EXPO_HOME;
@@ -5188,12 +5189,8 @@ async function pathExistsAsync(filePath) {
   }
 }
 async function readJsonConfigAsync(filePath) {
-  const file = Bun.file(filePath);
-  if (!await file.exists()) {
-    return null;
-  }
   try {
-    return await file.json();
+    return JSON.parse(await readFile(filePath, "utf8"));
   } catch {
     return null;
   }
@@ -5319,7 +5316,7 @@ async function downloadAppAsync({
   const fetchInstance = fetch;
   const progressMessage = (ratio, total) => `Downloading Expo Go (${formatBytes(total * ratio)} / ${formatBytes(total)})`;
   if (extract) {
-    const tmpDir = path3.join(getTmpDirectory(), crypto.randomUUID());
+    const tmpDir = path3.join(getTmpDirectory(), randomUUID());
     await mkdir2(tmpDir, { recursive: true });
     const tmpPath = path3.join(tmpDir, getUrlBasename(url));
     await downloadFileWithProgressTrackerAsync(url, tmpPath, progressMessage, "Successfully downloaded Expo Go", { showNewLine: false, fetch: fetchInstance });
@@ -5466,9 +5463,8 @@ async function runCliAsync(argv = process.argv, deps = defaultCliDependencies, o
   }
   throw new Error(`Unknown command "${command}".`);
 }
-
 // index.ts
-if (import.meta.main) {
+if (__require.main == __require.module) {
   try {
     await runCliAsync(process.argv);
   } catch (error) {
