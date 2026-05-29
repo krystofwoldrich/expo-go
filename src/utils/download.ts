@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -6,9 +5,10 @@ import { clearLine, cursorTo } from 'node:readline';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
-import { extract } from 'tar';
-
 import type { FetchLike, ProgressCallback } from './fetch';
+// Mirrors @expo/cli's standalone tar extraction utility:
+// https://github.com/expo/expo/blob/2c21e2f96ce6aede3d6bb5c780f0964d2116d37b/packages/@expo/cli/src/utils/tar.ts#L136-L146
+import { extractAsync } from './tar';
 
 export type { FetchLike };
 
@@ -112,26 +112,5 @@ export async function downloadFileWithProgressTrackerAsync(
 }
 
 export async function extractArchiveAsync(input: string, output: string): Promise<void> {
-  try {
-    if (await extractWithNativeTarAsync(input, output)) {
-      return;
-    }
-  } catch {
-    // Fall back to the JS implementation below.
-  }
-
-  await extract({ cwd: output, file: input });
-}
-
-function extractWithNativeTarAsync(input: string, output: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const subprocess = spawn('tar', ['-xf', input, '-C', output], {
-      stdio: ['ignore', 'inherit', 'inherit'],
-    });
-
-    subprocess.on('error', reject);
-    subprocess.on('close', code => {
-      resolve(code === 0);
-    });
-  });
+  await extractAsync(input, output);
 }
